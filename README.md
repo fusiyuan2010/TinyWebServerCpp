@@ -12,3 +12,10 @@ Info
  - Very simple interface, only a callback function is necessary
  - DO NOT USE IN KEY BUSINESS, for personal use before, still be experimental
  - Any improvement is welcomed
+
+
+TODO
+--------
+ - Refactor task-queue data structure
+ - Better programmed request parser, especially need to add request header parsing
+
