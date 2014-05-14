@@ -179,7 +179,7 @@ void HttpConnection::process_request()
             /* push to http_server's thread pool */
             req_.threaded_ = true;
             if (http_server_->threadnum_ == 0) {
-                exception e("Useing threadpool in callback handler"
+                ServerException e("Useing threadpool in callback handler"
                         "but thread num set to zero");
                 throw e;
             }
