@@ -16,6 +16,7 @@ Info
 
 TODO
 --------
- - Refactor task-queue data structure
+ - Refactor task-queue data structure (done)
  - Better programmed request parser, especially need to add request header parsing
+ - Get rid of boost::asio, refactor i/o directly on epoll instead
 
