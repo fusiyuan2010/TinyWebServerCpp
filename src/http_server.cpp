@@ -344,13 +344,17 @@ void HttpServerInter::thread_proc(int id)
 
     (void)(id);
     for(;;) {
+        HttpConnPtr conn;
         std::unique_lock<std::mutex> lk(threadpool_m_);
-        while (q.size() > 0) {
-            HttpConnPtr conn = q.front();
+        if (q.size() > 0) {
+            conn = q.front();
             q.pop_front();
-            conn->process_request();
+            lk.unlock();
+        } else {
+            threadpool_cv_.wait(lk);
+            continue;
         }
-        threadpool_cv_.wait(lk);
+        conn->process_request();
     }
 }
 
