@@ -4,7 +4,7 @@ OPT=-O3
 DEBUG=-g
 
 CFLAGS=-std=c++11 -Wall -Wextra -pedantic -Wno-format -fPIC $(OPT) $(DEBUG)
-CC=g++-4.7
+CC=g++
 LIBS=-pthread -lboost_system-mt
 LIB_PATH=
 INCLUDE_PATH=-I./
