@@ -26,6 +26,7 @@ enum HttpCode {
 class Request
 {
     friend class HttpConnection;
+    std::map<std::string, std::string> headers_;
     RequestType type_;
     std::string path_;
     std::string postdata_;
@@ -37,6 +38,7 @@ public:
     const std::string &postdata() const { return postdata_;}
     RequestType type() const { return type_; }
     bool in_threadpool() const { return threaded_; }
+    const std::map<std::string, std::string> &headers() const {return headers_;}
 };
 
 class Response

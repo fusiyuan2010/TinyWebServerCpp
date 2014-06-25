@@ -72,6 +72,7 @@ public:
                 std::size_t bytes_transferred);
 
     void process_request();
+    int parse_request_header();
     int try_parse_request(std::size_t bytes_transferred);
     void begin_response();
     void handle_write(const boost::system::error_code& e);
@@ -190,55 +191,103 @@ void HttpConnection::process_request()
     }
 }
 
+int HttpConnection::parse_request_header()
+{
+    size_t spos;
+    const char *h;
+    if ((spos = request_.find("\r\n\r\n")) == std::string::npos) 
+        return -1;
+    spos += 4; //after \r\n\r\n
+    h = request_.c_str();
+
+#define PREFIX_EQ(haystack, needle) (::strncmp(haystack, needle, ::strlen(needle)) == 0)
+    if (PREFIX_EQ(h, "GET ")) {
+        req_.type_ = HTTP_GET;
+        h += ::strlen("GET ");
+    } else if (PREFIX_EQ(h, "POST ")) {
+        req_.type_ = HTTP_POST;
+        state_ = kReadingPost;
+        req_.postdata_ = request_.substr(spos);
+        h += ::strlen("POST ");
+    } else if (PREFIX_EQ(h, "HEAD ")) {
+        req_.type_ = HTTP_HEAD;
+        h += ::strlen("HEAD ");
+    } else if (PREFIX_EQ(h, "PUT ")) {
+        req_.type_ = HTTP_PUT;
+        state_ = kReadingPost;
+        req_.postdata_ = request_.substr(spos);
+        h += ::strlen("PUT ");
+    } else {
+        // not begin with GET/POST/PUT/HEAD..
+        return  -1;
+    }
+
+
+    while(!PREFIX_EQ(h, " HTTP/1.")) {
+        req_.path_.append(1, *h);
+        h++;
+    }
+
+    h += ::strlen(" HTTP/1.1\r\n");
+
+    auto split_kv = [this](const char *s) {
+        const char *p = s;
+        std::string key, value;
+        bool inkey = true;
+        for( ; *p != '\0'; ) {
+            if (PREFIX_EQ(p, "\r\n")) {
+                // \r\n found
+                if (!key.empty())
+                    this->req_.headers_[key] = value;
+                return p + 2;
+            }
+            if (inkey) {
+                // before  " : "
+                if (PREFIX_EQ(p, ": ")) {
+                    p += 2;
+                    inkey = false;
+                    continue;
+                } else if (PREFIX_EQ(p, " : ")) {
+                    p += 3;
+                    inkey = false;
+                    continue;
+                } else {
+                    key.append(1, *p);
+                }
+            } else {
+                // after " : "
+                value.append(1, *p);
+            }
+            p++;
+        }
+        return p;
+    };
+    while(!PREFIX_EQ(h, "\r\n")) {
+        h = split_kv(h);
+    }
+#undef PREFIX_EQ
+    auto it = req_.headers_.find("Content-Length");
+    if (it != req_.headers_.end()) {
+        postsize_ = ::atol(it->second.c_str());
+    }
+    return 0;
+}
+
 int HttpConnection::try_parse_request(std::size_t bytes_transferred)
 {
     if (state_ == kReadingHeader) {
         request_.append(buffer_.data(), bytes_transferred);
-        size_t spos, spos2;
-        if ((spos = request_.find("\r\n\r\n")) != std::string::npos) {
-            if (request_.substr(0, 4) == "GET ") {
-                req_.type_ = HTTP_GET;
-                spos2 = 4;
-            } else if (request_.substr(0, 5) == "POST ") {
-                req_.type_ = HTTP_POST;
-                state_ = kReadingPost;
-                req_.postdata_ = request_.substr(spos + 4);
-                spos2 = 5;
-            } else {
-                // not begin with GET/POST/..
-                return  -1;
-            }
-
-            size_t spos3 = request_.find(" HTTP/1.", spos2);
-            if (spos3 == std::string::npos)
+        if (parse_request_header() < 0) {
+            if (request_.size() > 8192)
+                // header size less than 8K count as valid
                 return -1;
-
-            req_.path_ = request_.substr(spos2, spos3 - spos2);
-
-            if (state_ == kReadingPost) {
-                spos2 = request_.find("Content-Length: ");
-                if (spos2 == std::string::npos)
-                    return -1;
-                spos2 += ::strlen("Content-Length: ");
-                spos3 = request_.find("\r\n", spos2);
-                if (spos3 == std::string::npos)
-                    return -1;
-                if (spos3 - spos2 > 16)
-                    return -1;
-                postsize_ = atoi(request_.substr(spos2, spos3).c_str());
-            }
-            
-            if (state_ == kReadingPost && req_.postdata_.size() < postsize_) 
+            else 
                 return 1;
-            else {
-                return 0;
-            }
         }
-
-        if (request_.size() > 4096)
-            return -1;
-        else 
+        if (state_ == kReadingPost && req_.postdata_.size() < postsize_) 
             return 1;
+        else 
+            return 0;
     } else if (state_ == kReadingPost) {
         req_.postdata_.append(buffer_.data(), bytes_transferred);
         if (req_.postdata_.size() >= postsize_) 
@@ -246,7 +295,7 @@ int HttpConnection::try_parse_request(std::size_t bytes_transferred)
         else 
             return 1;
     }
-
+    // impossible to reach
     return -1;
 }
 
