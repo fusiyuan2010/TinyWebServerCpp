@@ -1,4 +1,5 @@
-#include "http_server.hpp"
+#include <http_server.hpp>
+#include <zlib_compression.hpp>
 #include <exception>
 #include <cstring>
 
@@ -125,7 +126,22 @@ void Response::clear()
 {
     headers_.clear();
     body_.clear();
+#ifdef HTTP_COMPRESSION
+    compression_ = 5;
+#endif
+
 }
+
+#ifdef HTTP_COMPRESSION
+void Response::set_compression(int level)
+{
+    compression_ = level;
+    if (compression_ < 0)
+        compression_ = 0;
+    if (compression_ > 9)
+        compression_ = 9;
+}
+#endif
 
 HttpConnection::HttpConnection(HttpServerInter* http_server)
         : socket_(http_server->io_),
@@ -308,11 +324,26 @@ void HttpConnection::begin_response()
         resp_.set_body("<html><body><h1>" + STATUS_CODE_STR[http_ret_] + "</h1></body></html>");
         resp_.set_header("Content-Type", "text/html");
     }
-    if (resp_.headers_.count("Content-Length") == 0) 
-        resp_.set_header("Content-Length", resp_.body_.size());
     if (resp_.headers_.count("Server") == 0) 
         resp_.set_header("Server", "SimpleWebSvr/1.0");
-    resp_.set_header("Connection", "Keep-Alive");
+    if (resp_.headers_.count("Connection") == 0) 
+        resp_.set_header("Connection", "Keep-Alive");
+#ifdef HTTP_COMPRESSION
+    auto it = req_.headers_.find("Accept-Encoding");
+    if (it != req_.headers_.end()
+            && it->second.find("deflate") != std::string::npos) {
+        // client support deflate compression
+        if (!resp_.body_.empty()) {
+            std::string deflated = zlib_compress(resp_.body_);
+            if (!deflated.empty()) {
+                resp_.body_ = deflated;
+                resp_.set_header("Content-Encoding", "deflate");
+            }
+        }
+    }
+#endif
+    if (resp_.headers_.count("Content-Length") == 0) 
+        resp_.set_header("Content-Length", resp_.body_.size());
 
     std::vector<boost::asio::const_buffer> buffers;
     if (http_ret_ >= 0 && http_ret_ < HTTP_END) {
