@@ -1,6 +1,6 @@
 #ifndef _HTTP_SERVER_
 #define _HTTP_SERVER_
-#include <map>
+#include <unordered_map>
 #include <string>
 
 namespace tws{
@@ -26,7 +26,7 @@ enum HttpCode {
 class Request
 {
     friend class HttpConnection;
-    std::map<std::string, std::string> headers_;
+    std::unordered_map<std::string, std::string> headers_;
     RequestType type_;
     std::string path_;
     std::string postdata_;
@@ -38,13 +38,13 @@ public:
     const std::string &postdata() const { return postdata_;}
     RequestType type() const { return type_; }
     bool in_threadpool() const { return threaded_; }
-    const std::map<std::string, std::string> &headers() const {return headers_;}
+    const std::unordered_map<std::string, std::string> &headers() const {return headers_;}
 };
 
 class Response
 {
     friend class HttpConnection;
-    std::map<std::string, std::string> headers_;
+    std::unordered_map<std::string, std::string> headers_;
     std::string body_;
     void clear();
 #ifdef HTTP_COMPRESSION
