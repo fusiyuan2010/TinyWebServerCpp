@@ -278,7 +278,7 @@ int HttpConnection::parse_request_header()
         }
         return p;
     };
-    while(!PREFIX_EQ(h, "\r\n")) {
+    while(*h && !PREFIX_EQ(h, "\r\n")) {
         h = split_kv(h);
     }
 #undef PREFIX_EQ
